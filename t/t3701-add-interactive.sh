@@ -24,7 +24,6 @@ test_expect_success 'status works (initial)' '
 test_expect_success 'setup expected' '
 	cat >expected <<-\EOF
 	new file mode 100644
-	index 0000000..d95f3ad
 	--- /dev/null
 	+++ b/file
 	@@ -0,0 +1 @@
@@ -34,7 +33,7 @@ test_expect_success 'setup expected' '
 
 test_expect_success 'diff works (initial)' '
 	(echo d; echo 1) | git add -i >output &&
-	sed -ne "/new file/,/content/p" <output >diff &&
+	sed -ne /^index/d -e "/new file/,/content/p" <output >diff &&
 	test_cmp expected diff
 '
 test_expect_success 'revert works (initial)' '
@@ -60,7 +59,6 @@ test_expect_success 'status works (commit)' '
 
 test_expect_success 'setup expected' '
 	cat >expected <<-\EOF
-	index 180b47c..b6f2c08 100644
 	--- a/file
 	+++ b/file
 	@@ -1 +1,2 @@
@@ -71,7 +69,7 @@ test_expect_success 'setup expected' '
 
 test_expect_success 'diff works (commit)' '
 	(echo d; echo 1) | git add -i >output &&
-	sed -ne "/^index/,/content/p" <output >diff &&
+	sed -ne "/^---/,/content/p" <output >diff &&
 	test_cmp expected diff
 '
 test_expect_success 'revert works (commit)' '
@@ -90,7 +88,7 @@ test_expect_success 'setup expected' '
 test_expect_success 'dummy edit works' '
 	test_set_editor : &&
 	(echo e; echo a) | git add -p &&
-	git diff > diff &&
+	git diff | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
@@ -144,7 +142,6 @@ test_expect_success 'setup patch' '
 test_expect_success 'setup expected' '
 	cat >expected <<-\EOF
 	diff --git a/file b/file
-	index b5dd6c9..f910ae9 100644
 	--- a/file
 	+++ b/file
 	@@ -1,4 +1,4 @@
@@ -158,7 +155,7 @@ test_expect_success 'setup expected' '
 
 test_expect_success 'real edit works' '
 	(echo e; echo n; echo d) | git add -p &&
-	git diff >output &&
+	git diff | sed /^index/d >output &&
 	test_cmp expected output
 '
 
@@ -167,10 +164,10 @@ test_expect_success 'skip files similarly as commit -a' '
 	echo file >.gitignore &&
 	echo changed >file &&
 	echo y | git add -p file &&
-	git diff >output &&
+	git diff | sed /^index/d >output &&
 	git reset &&
 	git commit -am commit &&
-	git diff >expected &&
+	git diff | sed /^index/d >expected &&
 	test_cmp expected output &&
 	git reset --hard HEAD^
 '
@@ -216,7 +213,6 @@ test_expect_success 'setup again' '
 # Write the patch file with a new line at the top and bottom
 test_expect_success 'setup patch' '
 	cat >patch <<-\EOF
-	index 180b47c..b6f2c08 100644
 	--- a/file
 	+++ b/file
 	@@ -1,2 +1,4 @@
@@ -231,7 +227,6 @@ test_expect_success 'setup patch' '
 test_expect_success 'setup expected' '
 	cat >expected <<-\EOF
 	diff --git a/file b/file
-	index b6f2c08..61b9053 100755
 	--- a/file
 	+++ b/file
 	@@ -1,2 +1,4 @@
@@ -247,7 +242,7 @@ test_expect_success 'add first line works' '
 	git commit -am "clear local changes" &&
 	git apply patch &&
 	(echo s; echo y; echo y) | git add -p file &&
-	git diff --cached > diff &&
+	git diff --cached | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
@@ -255,7 +250,6 @@ test_expect_success 'setup expected' '
 	cat >expected <<-\EOF
 	diff --git a/non-empty b/non-empty
 	deleted file mode 100644
-	index d95f3ad..0000000
 	--- a/non-empty
 	+++ /dev/null
 	@@ -1 +0,0 @@
@@ -270,7 +264,7 @@ test_expect_success 'deleting a non-empty file' '
 	git commit -m non-empty &&
 	rm non-empty &&
 	echo y | git add -p non-empty &&
-	git diff --cached >diff &&
+	git diff --cached | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
@@ -278,7 +272,6 @@ test_expect_success 'setup expected' '
 	cat >expected <<-\EOF
 	diff --git a/empty b/empty
 	deleted file mode 100644
-	index e69de29..0000000
 	EOF
 '
 
@@ -289,7 +282,7 @@ test_expect_success 'deleting an empty file' '
 	git commit -m empty &&
 	rm empty &&
 	echo y | git add -p empty &&
-	git diff --cached >diff &&
+	git diff --cached | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
@@ -316,7 +309,7 @@ test_expect_success 'split hunk "add -p (edit)"' '
 	#    exits.
 	printf "%s\n" s e     q n q q |
 	EDITOR=: git add -p &&
-	git diff >actual &&
+	git diff | sed /^index/d >actual &&
 	! grep "^+15" actual
 '
 
@@ -328,7 +321,7 @@ test_expect_failure 'split hunk "add -p (no, yes, edit)"' '
 	printf "%s\n" s n y e   q n q q |
 	EDITOR=: git add -p 2>error &&
 	test_must_be_empty error &&
-	git diff >actual &&
+	git diff | sed /^index/d >actual &&
 	! grep "^+31" actual
 '
 
@@ -347,14 +340,13 @@ test_expect_success 'patch mode ignores unmerged entries' '
 	cat >expected <<-\EOF &&
 	* Unmerged path conflict.t
 	diff --git a/non-conflict.t b/non-conflict.t
-	index f766221..5ea2ed4 100644
 	--- a/non-conflict.t
 	+++ b/non-conflict.t
 	@@ -1 +1 @@
 	-non-conflict
 	+changed
 	EOF
-	git diff --cached >diff &&
+	git diff --cached | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
