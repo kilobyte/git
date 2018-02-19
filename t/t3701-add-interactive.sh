@@ -220,13 +220,15 @@ test_expect_success 'setup patch' '
 	 baseline
 	 content
 	+lastline
+	\ No newline at end of file
 	EOF
 '
 
-# Expected output, similar to the patch but w/ diff at the top
+# Expected output, diff is similar to the patch but w/ diff at the top
 test_expect_success 'setup expected' '
-	cat >expected <<-\EOF
-	diff --git a/file b/file
+	echo diff --git a/file b/file >expected &&
+	cat patch >>expected &&
+	cat >expected-output <<-\EOF
 	--- a/file
 	+++ b/file
 	@@ -1,2 +1,4 @@
@@ -234,16 +236,30 @@ test_expect_success 'setup expected' '
 	 baseline
 	 content
 	+lastline
+	\ No newline at end of file
+	@@ -1,2 +1,3 @@
+	+firstline
+	 baseline
+	 content
+	@@ -1,2 +2,3 @@
+	 baseline
+	 content
+	+lastline
+	\ No newline at end of file
 	EOF
 '
 
 # Test splitting the first patch, then adding both
-test_expect_success 'add first line works' '
+test_expect_success C_LOCALE_OUTPUT 'add first line works' '
 	git commit -am "clear local changes" &&
 	git apply patch &&
-	(echo s; echo y; echo y) | git add -p file &&
+	printf "%s\n" s y y | git add -p file 2>error |
+		sed -n -e "s/^Stage this hunk[^@]*\(@@ .*\)/\1/" \
+		       -e "/^[-+@ \\\\]"/p  >output &&
+	test_must_be_empty error &&
 	git diff --cached | sed /^index/d >diff &&
-	test_cmp expected diff
+	test_cmp expected diff &&
+	test_cmp expected-output output
 '
 
 test_expect_success 'setup expected' '
