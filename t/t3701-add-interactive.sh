@@ -22,19 +22,18 @@ test_expect_success 'status works (initial)' '
 '
 
 test_expect_success 'setup expected' '
-cat >expected <<EOF
-new file mode 100644
-index 0000000..d95f3ad
---- /dev/null
-+++ b/file
-@@ -0,0 +1 @@
-+content
-EOF
+	cat >expected <<-\EOF
+	new file mode 100644
+	--- /dev/null
+	+++ b/file
+	@@ -0,0 +1 @@
+	+content
+	EOF
 '
 
 test_expect_success 'diff works (initial)' '
 	(echo d; echo 1) | git add -i >output &&
-	sed -ne "/new file/,/content/p" <output >diff &&
+	sed -ne /^index/d -e "/new file/,/content/p" <output >diff &&
 	test_cmp expected diff
 '
 test_expect_success 'revert works (initial)' '
@@ -59,19 +58,18 @@ test_expect_success 'status works (commit)' '
 '
 
 test_expect_success 'setup expected' '
-cat >expected <<EOF
-index 180b47c..b6f2c08 100644
---- a/file
-+++ b/file
-@@ -1 +1,2 @@
- baseline
-+content
-EOF
+	cat >expected <<-\EOF
+	--- a/file
+	+++ b/file
+	@@ -1 +1,2 @@
+	 baseline
+	+content
+	EOF
 '
 
 test_expect_success 'diff works (commit)' '
 	(echo d; echo 1) | git add -i >output &&
-	sed -ne "/^index/,/content/p" <output >diff &&
+	sed -ne "/^---/,/content/p" <output >diff &&
 	test_cmp expected diff
 '
 test_expect_success 'revert works (commit)' '
@@ -83,39 +81,32 @@ test_expect_success 'revert works (commit)' '
 
 
 test_expect_success 'setup expected' '
-cat >expected <<EOF
-EOF
-'
-
-test_expect_success 'setup fake editor' '
-	>fake_editor.sh &&
-	chmod a+x fake_editor.sh &&
-	test_set_editor "$(pwd)/fake_editor.sh"
+	cat >expected <<-\EOF
+	EOF
 '
 
 test_expect_success 'dummy edit works' '
+	test_set_editor : &&
 	(echo e; echo a) | git add -p &&
-	git diff > diff &&
+	git diff | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
 test_expect_success 'setup patch' '
-cat >patch <<EOF
-@@ -1,1 +1,4 @@
- this
-+patch
--does not
- apply
-EOF
+	cat >patch <<-\EOF
+	@@ -1,1 +1,4 @@
+	 this
+	+patch
+	-does not
+	 apply
+	EOF
 '
 
 test_expect_success 'setup fake editor' '
-	echo "#!$SHELL_PATH" >fake_editor.sh &&
-	cat >>fake_editor.sh <<\EOF &&
-mv -f "$1" oldpatch &&
-mv -f patch "$1"
-EOF
-	chmod a+x fake_editor.sh &&
+	write_script "fake_editor.sh" <<-\EOF &&
+	mv -f "$1" oldpatch &&
+	mv -f patch "$1"
+	EOF
 	test_set_editor "$(pwd)/fake_editor.sh"
 '
 
@@ -126,10 +117,10 @@ test_expect_success 'bad edit rejected' '
 '
 
 test_expect_success 'setup patch' '
-cat >patch <<EOF
-this patch
-is garbage
-EOF
+	cat >patch <<-\EOF
+	this patch
+	is garbage
+	EOF
 '
 
 test_expect_success 'garbage edit rejected' '
@@ -139,33 +130,32 @@ test_expect_success 'garbage edit rejected' '
 '
 
 test_expect_success 'setup patch' '
-cat >patch <<EOF
-@@ -1,0 +1,0 @@
- baseline
-+content
-+newcontent
-+lines
-EOF
+	cat >patch <<-\EOF
+	@@ -1,0 +1,0 @@
+	 baseline
+	+content
+	+newcontent
+	+lines
+	EOF
 '
 
 test_expect_success 'setup expected' '
-cat >expected <<EOF
-diff --git a/file b/file
-index b5dd6c9..f910ae9 100644
---- a/file
-+++ b/file
-@@ -1,4 +1,4 @@
- baseline
- content
--newcontent
-+more
- lines
-EOF
+	cat >expected <<-\EOF
+	diff --git a/file b/file
+	--- a/file
+	+++ b/file
+	@@ -1,4 +1,4 @@
+	 baseline
+	 content
+	-newcontent
+	+more
+	 lines
+	EOF
 '
 
 test_expect_success 'real edit works' '
 	(echo e; echo n; echo d) | git add -p &&
-	git diff >output &&
+	git diff | sed /^index/d >output &&
 	test_cmp expected output
 '
 
@@ -174,10 +164,10 @@ test_expect_success 'skip files similarly as commit -a' '
 	echo file >.gitignore &&
 	echo changed >file &&
 	echo y | git add -p file &&
-	git diff >output &&
+	git diff | sed /^index/d >output &&
 	git reset &&
 	git commit -am commit &&
-	git diff >expected &&
+	git diff | sed /^index/d >expected &&
 	test_cmp expected output &&
 	git reset --hard HEAD^
 '
@@ -222,52 +212,65 @@ test_expect_success 'setup again' '
 
 # Write the patch file with a new line at the top and bottom
 test_expect_success 'setup patch' '
-cat >patch <<EOF
-index 180b47c..b6f2c08 100644
---- a/file
-+++ b/file
-@@ -1,2 +1,4 @@
-+firstline
- baseline
- content
-+lastline
-EOF
+	cat >patch <<-\EOF
+	--- a/file
+	+++ b/file
+	@@ -1,2 +1,4 @@
+	+firstline
+	 baseline
+	 content
+	+lastline
+	\ No newline at end of file
+	EOF
 '
 
-# Expected output, similar to the patch but w/ diff at the top
+# Expected output, diff is similar to the patch but w/ diff at the top
 test_expect_success 'setup expected' '
-cat >expected <<EOF
-diff --git a/file b/file
-index b6f2c08..61b9053 100755
---- a/file
-+++ b/file
-@@ -1,2 +1,4 @@
-+firstline
- baseline
- content
-+lastline
-EOF
+	echo diff --git a/file b/file >expected &&
+	cat patch >>expected &&
+	cat >expected-output <<-\EOF
+	--- a/file
+	+++ b/file
+	@@ -1,2 +1,4 @@
+	+firstline
+	 baseline
+	 content
+	+lastline
+	\ No newline at end of file
+	@@ -1,2 +1,3 @@
+	+firstline
+	 baseline
+	 content
+	@@ -1,2 +2,3 @@
+	 baseline
+	 content
+	+lastline
+	\ No newline at end of file
+	EOF
 '
 
 # Test splitting the first patch, then adding both
-test_expect_success 'add first line works' '
+test_expect_success C_LOCALE_OUTPUT 'add first line works' '
 	git commit -am "clear local changes" &&
 	git apply patch &&
-	(echo s; echo y; echo y) | git add -p file &&
-	git diff --cached > diff &&
-	test_cmp expected diff
+	printf "%s\n" s y y | git add -p file 2>error |
+		sed -n -e "s/^Stage this hunk[^@]*\(@@ .*\)/\1/" \
+		       -e "/^[-+@ \\\\]"/p  >output &&
+	test_must_be_empty error &&
+	git diff --cached | sed /^index/d >diff &&
+	test_cmp expected diff &&
+	test_cmp expected-output output
 '
 
 test_expect_success 'setup expected' '
-cat >expected <<EOF
-diff --git a/non-empty b/non-empty
-deleted file mode 100644
-index d95f3ad..0000000
---- a/non-empty
-+++ /dev/null
-@@ -1 +0,0 @@
--content
-EOF
+	cat >expected <<-\EOF
+	diff --git a/non-empty b/non-empty
+	deleted file mode 100644
+	--- a/non-empty
+	+++ /dev/null
+	@@ -1 +0,0 @@
+	-content
+	EOF
 '
 
 test_expect_success 'deleting a non-empty file' '
@@ -277,16 +280,15 @@ test_expect_success 'deleting a non-empty file' '
 	git commit -m non-empty &&
 	rm non-empty &&
 	echo y | git add -p non-empty &&
-	git diff --cached >diff &&
+	git diff --cached | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
 test_expect_success 'setup expected' '
-cat >expected <<EOF
-diff --git a/empty b/empty
-deleted file mode 100644
-index e69de29..0000000
-EOF
+	cat >expected <<-\EOF
+	diff --git a/empty b/empty
+	deleted file mode 100644
+	EOF
 '
 
 test_expect_success 'deleting an empty file' '
@@ -296,24 +298,18 @@ test_expect_success 'deleting an empty file' '
 	git commit -m empty &&
 	rm empty &&
 	echo y | git add -p empty &&
-	git diff --cached >diff &&
+	git diff --cached | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
 test_expect_success 'split hunk setup' '
 	git reset --hard &&
-	for i in 10 20 30 40 50 60
-	do
-		echo $i
-	done >test &&
+	test_write_lines 10 20 30 40 50 60 >test &&
 	git add test &&
 	test_tick &&
 	git commit -m test &&
 
-	for i in 10 15 20 21 22 23 24 30 40 50 60
-	do
-		echo $i
-	done >test
+	test_write_lines 10 15 20 21 22 23 24 30 40 50 60 >test
 '
 
 test_expect_success 'split hunk "add -p (edit)"' '
@@ -329,29 +325,19 @@ test_expect_success 'split hunk "add -p (edit)"' '
 	#    exits.
 	printf "%s\n" s e     q n q q |
 	EDITOR=: git add -p &&
-	git diff >actual &&
+	git diff | sed /^index/d >actual &&
 	! grep "^+15" actual
 '
 
 test_expect_failure 'split hunk "add -p (no, yes, edit)"' '
-	cat >test <<-\EOF &&
-	5
-	10
-	20
-	21
-	30
-	31
-	40
-	50
-	60
-	EOF
+	test_write_lines 5 10 20 21 30 31 40 50 60 >test &&
 	git reset &&
 	# test sequence is s(plit), n(o), y(es), e(dit)
 	# q n q q is there to make sure we exit at the end.
 	printf "%s\n" s n y e   q n q q |
 	EDITOR=: git add -p 2>error &&
 	test_must_be_empty error &&
-	git diff >actual &&
+	git diff | sed /^index/d >actual &&
 	! grep "^+31" actual
 '
 
@@ -370,14 +356,13 @@ test_expect_success 'patch mode ignores unmerged entries' '
 	cat >expected <<-\EOF &&
 	* Unmerged path conflict.t
 	diff --git a/non-conflict.t b/non-conflict.t
-	index f766221..5ea2ed4 100644
 	--- a/non-conflict.t
 	+++ b/non-conflict.t
 	@@ -1 +1 @@
 	-non-conflict
 	+changed
 	EOF
-	git diff --cached >diff &&
+	git diff --cached | sed /^index/d >diff &&
 	test_cmp expected diff
 '
 
@@ -539,6 +524,37 @@ test_expect_success 'status ignores dirty submodules (except HEAD)' '
 	grep dirty-head output &&
 	grep dirty-both-ways output &&
 	! grep dirty-otherwise output
+'
+
+test_expect_success 'set up pathological context' '
+	git reset --hard &&
+	test_write_lines a a a a a a a a a a a >a &&
+	git add a &&
+	git commit -m a &&
+	test_write_lines c b a a a a a a a b a a a a >a &&
+	test_write_lines     a a a a a a a b a a a a >expected-1 &&
+	test_write_lines   b a a a a a a a b a a a a >expected-2 &&
+	# check editing can cope with missing header and deleted context lines
+	# as well as changes to other lines
+	test_write_lines +b " a" >patch
+'
+
+test_expect_success 'add -p works with pathological context lines' '
+	git reset &&
+	printf "%s\n" n y |
+	git add -p &&
+	git cat-file blob :a >actual &&
+	test_cmp expected-1 actual
+'
+
+test_expect_success 'add -p patch editing works with pathological context lines' '
+	git reset &&
+	test_set_editor "$FAKE_EDITOR" &&
+	# n q q below is in case edit fails
+	printf "%s\n" e y    n q q |
+	git add -p &&
+	git cat-file blob :a >actual &&
+	test_cmp expected-2 actual
 '
 
 test_done
